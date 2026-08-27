@@ -75,14 +75,19 @@ function renderTransactionList() {
 }
 
 function renderBalance() {
-  const balanceEl = document.getElementById("blance");
+  // 문제: HTML의 balance를 JavaScript에서 blance로 잘못 찾아 잔액이 표시되지 않음.
+  // 수정: HTML의 id와 같은 balance를 사용하고, 잔액 변경 후 이 함수를 다시 호출함.
+  const balanceEl = document.getElementById("balance");
   balanceEl.textContent = formatCurrency(ACCOUNTS[0].balance);
 }
 
 // ---------- 입금 ----------
 
 function handleDeposit() {
+  // 문제: 입금 후 데이터만 바뀌고 화면 잔액은 다시 그리지 않음.
+  // 수정: 잔액을 변경한 직후 renderBalance()를 호출해 화면을 갱신함.
   ACCOUNTS[0].balance += 10000;
+  renderBalance();
   alert("10,000원이 입금되었습니다.");
 }
 
@@ -94,11 +99,13 @@ function calcInterest(balance, rate) {
 
 const interestBtn = document.querySelector("#interestBtn");
 interestBtn.addEventListener("click", () => {
+  // 문제: 부동소수점 계산 결과가 긴 소수로 표시됨.
+  // 수정: 이자를 Math.round()로 반올림해 금액을 정수로 표시하고 잔액에도 반영함.
   const rate = 0.0175; // 우대금리 연 1.75%
-  const interest = calcInterest(ACCOUNTS[0].balance, rate);
-  const newBalance = ACCOUNTS[0].balance + interest;
+  const interest = Math.round(calcInterest(ACCOUNTS[0].balance, rate));
+  ACCOUNTS[0].balance += interest;
   document.querySelector("#interestResult").textContent =
-    "이자 " + interest + "원 적용 → 잔액 " + newBalance + "원";
+    "이자 " + formatCurrency(interest) + " 적용 → 잔액 " + formatCurrency(ACCOUNTS[0].balance);
 });
 
 // ---------- 환율 ----------
@@ -107,8 +114,15 @@ async function fetchExchangeRate() {
   return new Promise((resolve) => setTimeout(() => resolve(1384), 500));
 }
 
-const rate = fetchExchangeRate();
-document.querySelector("#exchangeRate").textContent = rate + "원";
+// ---------- 환율 렌더링 ----------
+async function renderExchangeRate() {
+  // 문제: Promise 자체를 화면에 출력해 환율 대신 객체 텍스트가 표시됨.
+  // 수정: await로 실제 환율 값을 받은 뒤 화면에 출력함.
+  const rate = await fetchExchangeRate();
+  document.querySelector("#exchangeRate").textContent = rate + "원";
+}
+
+renderExchangeRate();
 
 // ---------- 이체 확인 모달 ----------
 
@@ -126,6 +140,27 @@ closeModalBtn.addEventListener("click", () => {
 });
 
 confirmTransferBtn.addEventListener("click", () => {
+  // 문제: 기존 이체 확인은 모달을 닫고 알림만 보여 잔액과 거래내역이 바뀌지 않음.
+  // 수정: 잔액 차감과 거래 추가 후 관련 화면을 모두 다시 렌더링함.
+  const transferAmount = 320000;
+
+  ACCOUNTS[0].balance -= transferAmount;
+
+  TRANSACTIONS.unshift({
+    txId: TRANSACTIONS.length + 1,
+    txType: "출금",
+    amount: transferAmount,
+    category: "이체",
+    memo: "월세 이체",
+    counterparty: "박집주인",
+    txDatetime: new Date().toISOString(),
+  });
+
+  renderBalance();
+  renderAccountList();
+  renderTransactionList();
+  renderCategorySummary();
+
   modalOverlay.classList.add("hidden");
   alert("이체가 완료되었습니다.");
 });
@@ -137,6 +172,7 @@ renderCategorySummary();
 renderTransactionList();
 
 const depositBtn = document.querySelector("#depositBtn");
-depositBtn.addEventListener("click", handleDeposit());
+// 함수 실행이 아닌 함수 자체 전달: handleDeposit -> handleDeposit()
+depositBtn.addEventListener("click", handleDeposit);
 
 renderBalance();
